@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+settings-zc95-*.json
+*.tmp
+*.log
+*.zip
