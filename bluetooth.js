@@ -57,7 +57,7 @@ class ZC95Output {
       this.valid(ticket);this.ready=true;this.notify('Connected. All OFF and zero-power commands sent.');
     }catch(e){this.disconnect('Connect failed: '+e.message,false);this.nextRetryAt=this.clock()+5000;}finally{this.connecting=false;this.notify(this.ready?'Connected / output stopped':this.message||'Disconnected');}
   }
-  check(frame){if(!frame||frame.version!=='0.9.1-wifi')throw Error('Restart the v0.9.1 launcher; backend version differs');
+  check(frame){if(!frame||frame.version!=='0.9.2-wifi')throw Error('Restart the v0.9.2 launcher; backend version differs');
     if(!Array.isArray(frame.config)||frame.config.length!==4||!Array.isArray(frame.channels)||frame.channels.length!==4||frame.channels.some((c,i)=>!c||c.channel!==i+1)||frame.config.some(c=>!c||typeof c.enabled!=='boolean'))throw Error('Invalid four-channel frame');
     if(frame.neutral)throw Error('Hard Neutral is active');
     const active=frame.channels.filter((_,i)=>frame.config[i].enabled);

@@ -1,7 +1,7 @@
 const assert=require('assert');
 const timers=[];global.setInterval=fn=>{timers.push(fn);return timers.length;};
 const {ZC95Output}=require('../bluetooth.js');
-function frame(){return{version:'0.9.1-wifi',neutral:false,config:[{enabled:true},{enabled:true},{enabled:true},{enabled:true}],channels:[1,2,3,4].map(i=>({channel:i,state:'PREVIEW',power:80,frequency:80,width:100}))};}
+function frame(){return{version:'0.9.2-wifi',neutral:false,config:[{enabled:true},{enabled:true},{enabled:true},{enabled:true}],channels:[1,2,3,4].map(i=>({channel:i,state:'PREVIEW',power:80,frequency:80,width:100}))};}
 function harness(){let now=0;const writes=[];const h=new ZC95Output();h.clock=()=>now;h.device={gatt:{connected:true,disconnect(){this.connected=false;}}};h.ready=true;h.channels=[0,1,2,3].map(i=>Object.fromEntries(['enable','power','width','frequency'].map(key=>[key,{async writeValueWithoutResponse(bytes){writes.push([i+1,key,[...bytes]]);}}])));return{h,writes,setTime:n=>now=n};}
 async function tick(t,f=frame()){t.h.update(f);if(t.h.pumping)await t.h.pumping;}
 (async()=>{

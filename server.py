@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 import socket
+import sys
 import socketserver
 import threading
 import time
@@ -17,6 +18,7 @@ from tcode import parse_message
 from websocket_input import WebSocketInput
 
 ROOT = Path(__file__).resolve().parent
+APP_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else ROOT
 from engine import Engine, defaults, crossover_defaults, validate, axis_value
 
 class LocalTCP(socketserver.ThreadingTCPServer):
@@ -137,10 +139,10 @@ def main():
     ap.add_argument('--mfp-port', type=int, default=12355)
     ap.add_argument('--no-browser', action='store_true')
     args = ap.parse_args()
-    settings=ROOT/'settings-zc95-v3.json'
-    if not settings.exists() and (ROOT/'settings-zc95-v2.json').exists():
+    settings=APP_ROOT/'settings-zc95-v3.json'
+    if not settings.exists() and (APP_ROOT/'settings-zc95-v2.json').exists():
         import shutil
-        shutil.copyfile(ROOT/'settings-zc95-v2.json',settings)
+        shutil.copyfile(APP_ROOT/'settings-zc95-v2.json',settings)
     engine = Engine(settings)
     try: servers = make_servers(engine, args.web_port, args.mfp_port)
     except OSError as e:
@@ -148,7 +150,7 @@ def main():
         return 1
     for s in servers: threading.Thread(target=s.serve_forever, daemon=True).start()
     url = f'http://127.0.0.1:{args.web_port}/'
-    print('Vector ZC95 0.8.2 - continuous full configured power range; starts disarmed\n'+url)
+    print('Vector ZC95 0.9.2 - continuous full configured power range; starts disarmed\n'+url)
     print(f'MFP: ws://127.0.0.1:{args.mfp_port}/ws (or TCP/UDP on the same port)')
     print('Keep this window open. Ctrl+C closes the app.')
     if not args.no_browser: webbrowser.open(url)

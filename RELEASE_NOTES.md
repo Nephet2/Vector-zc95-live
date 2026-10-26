@@ -1,3 +1,11 @@
+# v0.9.2 - Windows executable included
+
+Download the Windows ZIP, choose Extract All, and double-click Vector-ZC95.exe. Python is bundled: no separate Python installation or terminal commands. Keep the _internal folder with the executable and leave the console window open while using the app.
+
+Includes four-channel curves, 2D/3D feedback, Bluetooth/Wi-Fi output, MFP UDP/WebSocket/TCP input, the optional Lua pattern player and Steve's starter presets. Existing users can copy settings-zc95-v3.json beside the new executable before starting.
+
+The bundled-runtime self-check and source regression checks pass. Hardware output behaviour is retained. This community build is not digitally signed. Source and batch/Python launchers remain available.
+
 # v0.9.1 - Four-channel curves, Wi-Fi and starter presets
 
 Vector ZC95 Live now supports four independently editable channel curves, with a live 2D overview and rotatable 3D ribbons. MFP-driven output works over Bluetooth or Wi-Fi; MFP input can use UDP, WebSocket or TCP.

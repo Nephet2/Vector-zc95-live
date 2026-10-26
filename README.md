@@ -4,9 +4,13 @@ A standalone Windows controller that turns MultiFunPlayer T-code into dynamic ZC
 
 ## Download and run
 
-Download the ZIP from [Releases](https://github.com/Nephet2/Vector-zc95-live/releases), extract it, and run `START_VECTOR_ZC95.bat`. You need Python 3.10 or newer and desktop Chrome or Edge. No pip packages are required. Keep the launcher terminal open.
+Download the Windows ZIP from Releases, right-click it and choose Extract All, then double-click **Vector-ZC95.exe** inside the extracted folder. Python is included; no Python installation or pip commands are needed. Use desktop Chrome or Edge.
 
-The interface opens at `http://127.0.0.1:8766`. Close an older Vector ZC95 launcher before starting a new one. Settings save automatically in `settings-zc95-v3.json` beside the launcher. When upgrading, copy your existing settings file into the new folder before launching.
+Keep the companion `_internal` folder with the executable. The interface opens at `http://127.0.0.1:8766`. Keep the console window open while using Vector; closing it shuts down the listener. Close an older launcher before starting a new one.
+
+Settings save automatically in `settings-zc95-v3.json` beside the executable. When upgrading, copy your existing settings file into the new folder before launching.
+
+Source files are also included. Developers can run `START_VECTOR_ZC95.bat` or `python server.py` with Python 3.10+. The batch launcher uses the executable when present and otherwise falls back to Python.
 
 ## Included starter preset
 
@@ -89,3 +93,7 @@ Run automated checks with `python -m unittest discover -s tests` and the Node sc
 [Source and releases](https://github.com/Nephet2/Vector-zc95-live) · [ZC95 hardware/firmware](https://github.com/CrashOverride85/zc95)
 
 This is an independent community controller. See [LICENSE](LICENSE) for licensing and attribution.
+
+## Rebuild the Windows executable
+
+On 64-bit Windows, install pyinstaller==6.22.3 in a Python build environment and run `python build_windows.py`. The portable app is created in windows-dist/Vector-ZC95. Build tools are developer dependencies only. Runtime files and the Python licence are included. Run `Vector-ZC95.exe --self-test` to validate the runtime/assets without a browser, listener or output.

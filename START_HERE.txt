@@ -1,0 +1,15 @@
+VECTOR ZC95 LIVE 0.9.2 - WINDOWS
+
+1. Right-click the downloaded ZIP and choose Extract All.
+2. Open the extracted Vector-ZC95 folder.
+3. Double-click Vector-ZC95.exe.
+
+Python is included. Use Chrome or Edge for the interface.
+Keep the _internal folder with the EXE and keep its console window open.
+
+See README.md for MFP, Bluetooth and Wi-Fi setup.
+The app starts with hardware output stopped. Review the preset ranges and
+begin with physical device dials at zero before pressing Start or Play.
+
+UPGRADING: Copy your previous settings-zc95-v3.json beside the new EXE
+before launching to retain your settings.

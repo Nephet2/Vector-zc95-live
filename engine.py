@@ -293,7 +293,7 @@ class Engine:
                 channels.append(dict(channel=i+1,name=c['name'],axis=cross['axis'] if paired else c['axis'],state=status,
                     position=round(x,4),vector_speed=round(vs*100,1),speed=round(speed*100,1),weight=round(weight*100,2),
                     envelope=round(envelope,2),background=c['power_min'] if active else 0,power=round(max(0,min(100,p)),2),frequency=round(f),width=round(w)))
-            return dict(version='0.9.1-wifi',mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
+            return dict(version='0.9.2-wifi',mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
                 config=self.config,input_transport=self.input_transport,input_invert=self.input_invert,volume=self.volume,buffer_remaining=round(max(0,self.volume['delay_s']-(now-self.buffer_started)),2) if self.volume['enabled'] else 0,crossover=cross,crossover_position=round(cx*100,2),
                 defaults=dict(channels=defaults(),crossover=crossover_defaults(),volume=volume_defaults(),input_invert=False),axes=incoming,channels=channels,
                 input_links=sum(1 for link in self.links.values() if self.input_transport=='auto' or link['transport']==self.input_transport),count=self.count,last_packet=self.last_packet,transport=self.transport,errors=self.listener_errors,hardware_output=False)

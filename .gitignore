@@ -4,3 +4,8 @@ settings-zc95-*.json
 *.tmp
 *.log
 *.zip
+
+windows-build/
+windows-dist/
+_internal/
+*.exe
