@@ -1,3 +1,7 @@
+# Historical notes - v0.6.x
+
+These notes describe the earlier three-channel release. Current four-channel behaviour is documented in README.md.
+
 # Vector ZC95 0.6.0 - buffered Vector volume
 
 Close the earlier ZC95 launcher terminal and controller tabs. Run START_VECTOR_ZC95.bat, then open the app in Chrome or Edge. MFP remains ws://127.0.0.1:12355/ws.

@@ -90,6 +90,15 @@ class WebHandler(BaseHTTPRequestHandler):
             data = self.server.engine.snapshot()
             data['mfp_port'] = self.server.mfp_port
             return self.send(200, data)
+        if self.path in ('/wifi.js','/patterns.js','/vector_wifi.lua'):
+            name=self.path[1:]
+            return self.send(200, (ROOT/name).read_bytes(), 'text/javascript; charset=utf-8' if name.endswith('.js') else 'text/plain; charset=utf-8')
+        if self.path == '/ribbon.js':
+            return self.send(200, (ROOT/'ribbon.js').read_bytes(), 'text/javascript; charset=utf-8')
+        if self.path == '/editor.js':
+            return self.send(200, (ROOT/'editor.js').read_bytes(), 'text/javascript; charset=utf-8')
+        if self.path == '/curves.js':
+            return self.send(200, (ROOT/'curves.js').read_bytes(), 'text/javascript; charset=utf-8')
         if self.path == '/bluetooth.js':
             return self.send(200, (ROOT/'bluetooth.js').read_bytes(), 'text/javascript; charset=utf-8')
         if self.path in ('/', '/index.html'):
@@ -99,7 +108,7 @@ class WebHandler(BaseHTTPRequestHandler):
         if not self.local(): return self.send(403, {'error':'Local access only'})
         try:
             n = int(self.headers.get('Content-Length', 0))
-            if not 0 < n <= 16384: raise ValueError('Invalid request size')
+            if not 0 < n <= 32768: raise ValueError('Invalid request size')
             data = json.loads(self.rfile.read(n))
             if self.path == '/api/config': self.server.engine.configure(data)
             elif self.path == '/api/action': self.server.engine.action(data['action'])
@@ -128,14 +137,18 @@ def main():
     ap.add_argument('--mfp-port', type=int, default=12355)
     ap.add_argument('--no-browser', action='store_true')
     args = ap.parse_args()
-    engine = Engine(ROOT/'settings-zc95-v2.json')
+    settings=ROOT/'settings-zc95-v3.json'
+    if not settings.exists() and (ROOT/'settings-zc95-v2.json').exists():
+        import shutil
+        shutil.copyfile(ROOT/'settings-zc95-v2.json',settings)
+    engine = Engine(settings)
     try: servers = make_servers(engine, args.web_port, args.mfp_port)
     except OSError as e:
         print('Cannot start listener:', e, '\nClose the other Vector ZC95 window or choose different ports.')
         return 1
     for s in servers: threading.Thread(target=s.serve_forever, daemon=True).start()
     url = f'http://127.0.0.1:{args.web_port}/'
-    print('Vector ZC95 0.6.0 - continuous full configured power range; starts disarmed\n'+url)
+    print('Vector ZC95 0.8.2 - continuous full configured power range; starts disarmed\n'+url)
     print(f'MFP: ws://127.0.0.1:{args.mfp_port}/ws (or TCP/UDP on the same port)')
     print('Keep this window open. Ctrl+C closes the app.')
     if not args.no_browser: webbrowser.open(url)

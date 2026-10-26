@@ -7,22 +7,23 @@ from pathlib import Path
 import threading
 import time
 from lookahead import MotionBuffer, volume_defaults
+from curves import preset, evaluate, validate_curve
 
 AXES = [f'{a}{i}' for a in 'LRVAPEBC' for i in range(10)]
 MODES = ('fixed', 'position', 'speed', 'inverse_speed', 'blend', 'inv_position_speed', 'vector')
 
 def crossover_defaults():
-    return dict(enabled=True, axis='L0', invert=False, centre=50, width=20,
+    return dict(enabled=False, axis='L0', invert=False, centre=50, width=20,
                 mode='blend', curve='linear', smoothing_ms=0, speed_reference=100)
 
 def defaults():
     rows = []
-    for i, name in enumerate(('AB', 'CD', 'Prostate')):
-        c = dict(name=name, axis='L0', invert=False, enabled=True,
+    for i, name in enumerate(('Channel 1', 'Channel 2', 'Channel 3', 'Channel 4')):
+        c = dict(name=name, axis='L0', invert=False, enabled=i<2,
                  power_min=0, power_max=10, frequency_min=40, frequency_max=100,
-                 width_min=80, width_max=120, smoothing_ms=150, speed_reference=100)
-        c.update(frequency_follow_ab=False, width_follow_ab=False)
-        for stem, mode in [('power', 'fixed' if i < 2 else 'position'),
+                 width_min=80, width_max=120, smoothing_ms=0, speed_reference=100)
+        c.update(frequency_follow_ab=False, width_follow_ab=False, curve=preset('crossover_'+str(i+1) if i<2 else 'flat', 'linear' if i<2 else 'smooth'))
+        for stem, mode in [('power', 'fixed'),
                            ('frequency', 'blend'), ('width', 'inv_position_speed')]:
             c.update({stem+'_mode':mode, stem+'_speed_mix':67 if stem!='power' else 50, stem+'_damping_ms':500 if stem!='power' else 0,
                       stem+'_rest_enabled':stem == 'power' and i < 2,
@@ -57,14 +58,15 @@ def validate_cross(data):
     return c
 
 def validate(rows):
-    if not isinstance(rows,list) or len(rows)!=3: raise ValueError('Exactly three channel mappings are required')
+    if not isinstance(rows,list) or len(rows)!=4: raise ValueError('Exactly four channel mappings are required')
     result = defaults()
     for src, c in zip(rows,result):
         if not isinstance(src,dict) or src.get('axis') not in AXES: raise ValueError('Invalid source axis')
         c['axis'] = src['axis']
+        c['curve'] = validate_curve(src.get('curve',c['curve']))
         for k in ('invert','enabled'): c[k] = boolean(src,k)
         for k in ('frequency_follow_ab','width_follow_ab'):
-            c[k] = boolean({k:False,**src},k) if c['name']!='AB' else False
+            c[k] = boolean({k:False,**src},k) if c['name']!='Channel 1' else False
         for stem,lo,hi in [('power',0,100),('frequency',1,255),('width',1,255)]:
             for end in ('min','max'): c[stem+'_'+end] = numeric(src,stem+'_'+end,lo,hi)
             if c[stem+'_min']>c[stem+'_max']: raise ValueError(stem+' minimum exceeds maximum')
@@ -78,6 +80,29 @@ def validate(rows):
             c[stem+'_ramp_s'] = numeric(src,stem+'_ramp_s',0,10)
         for k,lo,hi in [('smoothing_ms',0,2000),('speed_reference',10,500)]: c[k]=numeric(src,k,lo,hi)
     return result
+
+def migrate_settings(data):
+    import copy
+    data=copy.deepcopy(data)
+    if not isinstance(data,dict):raise ValueError('Invalid settings')
+    rows=data.get('channels')
+    if isinstance(rows,list) and len(rows)==3:
+        cross=validate_cross(data['crossover'])
+        for i,c in enumerate(rows):
+            c['name']='Channel '+str(i+1)
+            if i<2 and cross['enabled']:
+                for key in ('axis','invert','smoothing_ms','speed_reference'):c[key]=cross[key]
+                if cross['width']==0 or cross['mode']=='gap':
+                    raise ValueError('Legacy gap/zero-width settings need manual curve setup')
+                lo=cross['centre']-cross['width']/2;hi=cross['centre']+cross['width']/2
+                pts=[[0,100],[lo,100],[hi,0],[100,0]]
+                pts=[p for j,p in enumerate(pts) if j==0 or p[0]!=pts[j-1][0]]
+                if i==1:pts=[[x,100-y] for x,y in pts]
+                c['curve']=dict(points=pts,interpolation='linear' if cross['curve']=='linear' else 'smooth')
+            else:c['curve']=preset('flat')
+        rows.append(defaults()[3])
+    data['crossover']={**crossover_defaults(),'enabled':False}
+    return data
 
 def crossover_weights(position, c):
     """Position is already direction-adjusted. Weights are command shares."""
@@ -102,16 +127,20 @@ def axis_speed(entry,now):
 class Engine:
     def __init__(self,settings=None,clock=time.monotonic):
         self.settings=settings;self.clock=clock;self.lock=threading.RLock()
-        self.config=defaults();self.crossover=crossover_defaults();self.axes={};self.links={}
+        self.config=defaults();self.crossover=crossover_defaults();self.input_invert=False;self.input_transport='auto';self.axes={};self.links={}
         self.motion=MotionBuffer();self.volume=volume_defaults();self.buffer_started=clock()
         self.count=0;self.last_packet='';self.transport='None';self.neutral=False;self.demo=False
         self.started=clock();self.previous_tick=clock();self.smooth={};self.attacks={};self.responses={};self.listener_errors=[]
-        if settings and settings.exists():
+        initial_settings = settings if settings and settings.exists() else (settings.with_name('starter-settings.json') if settings else None)
+        if initial_settings and initial_settings.exists():
             try:
-                data=json.loads(settings.read_text(encoding='utf-8'))
+                data=json.loads(initial_settings.read_text(encoding='utf-8-sig'))
+                data=migrate_settings(data)
                 rows=validate(data['channels']);cross=validate_cross(data['crossover'])
                 volume=self.validate_volume(data.get('volume',volume_defaults()))
                 self.config=rows;self.crossover=cross;self.volume=volume
+                self.input_invert=boolean({'input_invert':False,**data},'input_invert')
+                self.input_transport=self.validate_input_transport(data.get('input_transport','auto'))
             except (ValueError,KeyError,TypeError,OSError) as e:self.listener_errors.append('Settings ignored: '+str(e))
 
     def link_open(self,key,transport):
@@ -131,6 +160,7 @@ class Engine:
 
     def ingest(self,message,transport,source=None):
         from tcode import parse_message
+        if self.input_transport!='auto' and transport!=self.input_transport:return
         commands=parse_message(message[:65536]);now=self.clock()
         with self.lock:
             for cmd in commands:
@@ -151,18 +181,27 @@ class Engine:
     def validate_volume(data):
         if not isinstance(data,dict):raise ValueError('Invalid look-ahead settings')
         return dict(enabled=boolean(data,'enabled'),delay_s=numeric(data,'delay_s',0,5),ratio=numeric(data,'ratio',10,40))
+    @staticmethod
+    def validate_input_transport(value):
+        if value not in ('auto','UDP','WebSocket','TCP'):raise ValueError('Invalid input transport')
+        return value
     def configure(self,data):
         if not isinstance(data,dict):raise ValueError('Settings require channels and crossover')
+        input_transport=self.validate_input_transport(data.get('input_transport',self.input_transport))
+        input_invert=boolean({'input_invert':self.input_invert,**data},'input_invert')
         rows=validate(data.get('channels'));cross=validate_cross(data.get('crossover'));volume=self.validate_volume(data.get('volume',self.volume))
         with self.lock:
             if self.settings:
                 temp=self.settings.with_suffix('.tmp')
-                temp.write_text(json.dumps(dict(channels=rows,crossover=cross,volume=volume),indent=2),encoding='utf-8')
+                temp.write_text(json.dumps(dict(channels=rows,crossover=cross,volume=volume,input_invert=input_invert,input_transport=input_transport),indent=2),encoding='utf-8')
                 os.replace(temp,self.settings)
-            changed = any(a[k]!=b[k] for a,b in zip(self.config,rows) for k in ('axis','invert')) or any(self.crossover[k]!=cross[k] for k in ('enabled','axis','invert'))
+            if self.input_transport!=input_transport:
+                self.axes={};self.motion.clear();self.buffer_started=self.clock();self.smooth={};self.attacks={};self.responses={}
+            self.input_transport=input_transport
+            changed = self.input_invert!=input_invert or any(a[k]!=b[k] for a,b in zip(self.config,rows) for k in ('axis','invert')) or any(self.crossover[k]!=cross[k] for k in ('enabled','axis','invert'))
             if (self.volume['enabled'],self.volume['delay_s'])!=(volume['enabled'],volume['delay_s']):
                 self.buffer_started=self.clock();changed=True
-            self.config=rows;self.crossover=cross;self.volume=volume
+            self.config=rows;self.crossover=cross;self.volume=volume;self.input_invert=input_invert
             if changed:self.smooth={};self.attacks={};self.responses={}
 
     def action(self,action):
@@ -192,7 +231,7 @@ class Engine:
             sample=self.motion.sample(axis,now)
             if sample is not None:_,_,vector_speed,vector_moving=sample
         if delay>0 and now-self.buffer_started<delay:fresh=False
-        return (1-x if invert else x),min(1,velocity/(reference/100)),velocity>.005,fresh,vector_speed,vector_moving
+        return (1-x if invert != self.input_invert else x),min(1,velocity/(reference/100)),velocity>.005,fresh,vector_speed,vector_moving
 
     def smooth_position(self,key,x,ms,dt,fresh):
         if not fresh:self.smooth.pop(key,None);return x
@@ -228,17 +267,17 @@ class Engine:
         now=self.clock()
         with self.lock:
             dt=min(.5,max(0,now-self.previous_tick));self.previous_tick=now
-            incoming={k:dict(value=axis_value(v,now),age=round(now-v['at'],2),interval_ms=v['interval_ms']) for k,v in self.axes.items()}
+            incoming={k:dict(raw_value=axis_value(v,now),value=1-axis_value(v,now) if self.input_invert else axis_value(v,now),age=round(now-v['at'],2),interval_ms=v['interval_ms']) for k,v in self.axes.items()}
             cross=self.crossover
             cx,cs,cm,cf,cvs,cvm=self.source(cross['axis'],cross['invert'],cross['speed_reference'],now)
             cx=self.smooth_position('cross',cx,cross['smoothing_ms'],dt,cf and not self.neutral)
             weights=crossover_weights(cx,cross)
             channels=[]
             for i,c in enumerate(self.config):
-                paired=cross['enabled'] and i<2
+                paired=False
                 x,speed,moving,fresh,vs,vm=(cx,cs,cm,cf,cvs,cvm) if paired else self.source(c['axis'],c['invert'],c['speed_reference'],now)
                 if not paired:x=self.smooth_position(i,x,c['smoothing_ms'],dt,fresh and not self.neutral and c['enabled'])
-                weight=weights[i] if paired else 1.
+                weight=evaluate(c['curve'],x)
                 active=fresh and c['enabled'] and not self.neutral
                 if active:
                     envelope=self.parameter(c,'power',x,speed,moving,now,i,dt,vs,vm)
@@ -254,7 +293,7 @@ class Engine:
                 channels.append(dict(channel=i+1,name=c['name'],axis=cross['axis'] if paired else c['axis'],state=status,
                     position=round(x,4),vector_speed=round(vs*100,1),speed=round(speed*100,1),weight=round(weight*100,2),
                     envelope=round(envelope,2),background=c['power_min'] if active else 0,power=round(max(0,min(100,p)),2),frequency=round(f),width=round(w)))
-            return dict(version='0.6.1-follow',mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
-                config=self.config,volume=self.volume,buffer_remaining=round(max(0,self.volume['delay_s']-(now-self.buffer_started)),2) if self.volume['enabled'] else 0,crossover=cross,crossover_position=round(cx*100,2),
-                defaults=dict(channels=defaults(),crossover=crossover_defaults(),volume=volume_defaults()),axes=incoming,channels=channels,
-                input_links=len(self.links),count=self.count,last_packet=self.last_packet,transport=self.transport,errors=self.listener_errors,hardware_output=False)
+            return dict(version='0.9.1-wifi',mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
+                config=self.config,input_transport=self.input_transport,input_invert=self.input_invert,volume=self.volume,buffer_remaining=round(max(0,self.volume['delay_s']-(now-self.buffer_started)),2) if self.volume['enabled'] else 0,crossover=cross,crossover_position=round(cx*100,2),
+                defaults=dict(channels=defaults(),crossover=crossover_defaults(),volume=volume_defaults(),input_invert=False),axes=incoming,channels=channels,
+                input_links=sum(1 for link in self.links.values() if self.input_transport=='auto' or link['transport']==self.input_transport),count=self.count,last_packet=self.last_packet,transport=self.transport,errors=self.listener_errors,hardware_output=False)

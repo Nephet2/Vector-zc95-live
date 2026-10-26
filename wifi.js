@@ -1,0 +1,43 @@
+'use strict';
+class ZC95WifiOutput extends ZC95Output{
+ constructor(report){super(report);this.ws=null;this.pending=new Map();this.msg=0;this.commit=0;this.running=false;this.ip='';this.nextHeartbeat=0;this.remoteDials=[0,0,0,0];}
+ maintain(){if(this.ready&&!this.running&&!this.connecting&&!this.pumping&&!this.stopping&&!this.pending.size&&this.clock()>=this.nextHeartbeat){this.nextHeartbeat=this.clock()+3000;void this.request('GetVersion').catch(e=>this.disconnect('WiFi heartbeat: '+e.message,false));}if(this.armed&&this.clock()-this.lastFrameAt>800)void this.pause('Command feed stalled; waiting to resume');if(this.requested&&!this.suspended&&!this.ready&&!this.connecting&&this.ip&&this.clock()-this.lastFrameAt<800&&this.clock()>=this.nextRetryAt){this.nextRetryAt=this.clock()+5000;void this.connect(true);}}
+ async request(Type,body={},timeout=1200){const ws=this.ws;if(!ws||ws.readyState!==1)throw Error('WiFi disconnected');const MsgId=++this.msg;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pending.delete(MsgId);ws.close();reject(Error(Type+' acknowledgement timed out'));},timeout);this.pending.set(MsgId,{resolve,reject,timer});try{ws.send(JSON.stringify({Type,MsgId,...body}));}catch(e){clearTimeout(timer);this.pending.delete(MsgId);reject(e);}});}
+ receive(event){let m;try{m=JSON.parse(event.data);}catch{return;}const p=this.pending.get(m.MsgId);if(p){clearTimeout(p.timer);this.pending.delete(m.MsgId);if(m.Result!=='OK')p.reject(Error(m.Error||m.Type+' rejected'));else p.resolve(m);return;}if(m.Type==='PowerStatus'){for(const c of m.Channels||[])if(c.Channel>=1&&c.Channel<=4&&Number.isInteger(c.PowerLimit)&&c.PowerLimit>=0&&c.PowerLimit<=1000)this.dials[c.Channel-1]=c.PowerLimit/10;}if(m.Type==='LuaScriptError'){this.running=false;void this.stop('WiFi receiver script error');} }
+ async connect(reuse=false){if(this.connecting||this.ws?.readyState===1)return;this.connecting=true;const ticket=++this.epoch;this.dials=[null,null,null,null];
+ try{if(!reuse){this.ip=document.getElementById('wifiIp').value.trim();const n=this.ip.split('.').map(Number);if(n.length!==4||n.some(v=>!Number.isInteger(v)||v<0||v>255)||!/^\d+\.\d+\.\d+\.\d+$/.test(this.ip)||!(n[0]===10||n[0]===192&&n[1]===168||n[0]===172&&n[1]>=16&&n[1]<=31))throw Error('Enter a private LAN IPv4 address');}
+ this.notify('Connecting WiFi '+this.ip);const ws=new WebSocket('ws://'+this.ip+'/stream');this.ws=ws;const owner=this;
+ this.device={gatt:{get connected(){return ws.readyState===1;},disconnect(){ws.close();}}};
+ await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{ws.close();reject(Error('WiFi connection timed out'));},8000);ws.onopen=()=>{clearTimeout(timer);resolve();};ws.onerror=()=>{clearTimeout(timer);reject(Error('Cannot connect to ZC95 WiFi; check IP, network permission and device mode'));};ws.onclose=()=>{clearTimeout(timer);reject(Error('WiFi closed during connection'));owner.closed(ws);};ws.onmessage=e=>owner.receive(e);});
+ this.valid(ticket);const v=await this.request('GetVersion');this.firmware=v.ZC95;
+ this.patternId=null;if(!this.patternMode){
+ const scripts=await this.request('GetLuaScripts');let slot=(scripts.Scripts||[]).find(s=>s.Valid&&s.Name==='U:Vector WiFi v1');
+ if(!slot){if(reuse)throw Error('Vector WiFi receiver missing; reconnect manually');slot=(scripts.Scripts||[]).find(s=>s.Empty);if(!slot)throw Error('No empty Lua slot; existing scripts were not changed');
+ const response=await fetch('/vector_wifi.lua');if(!response.ok)throw Error('Receiver script unavailable');const lines=(await response.text()).replace(/^\uFEFF/,'').split(/\r?\n/);this.notify('Installing receiver in empty Lua slot '+slot.Index);
+ await this.request('LuaStart',{Index:slot.Index});for(let i=0;i<lines.length;i++){this.valid(ticket);await this.request('LuaLine',{LineNumber:i,Text:lines[i]});}await this.request('LuaEnd',{},5000);}
+ const list=await this.request('GetPatterns');const pattern=(list.Patterns||[]).find(p=>p.Name==='U:Vector WiFi v1');if(!pattern)throw Error('WiFi receiver pattern not found');this.patternId=pattern.Id;
+ const detail=await this.request('GetPatternDetail',{Id:pattern.Id});if(!Array.isArray(detail.MenuItems)||detail.MenuItems.length!==13||detail.MenuItems.some((m,i)=>m.Id!==i+1||m.Type!=='MIN_MAX'))throw Error('Unexpected receiver parameters');
+ }
+ this.valid(ticket);this.channels=[{},{},{},{}];this.ready=true;this.running=false;this.sent=[0,0,0,0];this.cache.clear();this.notify(this.patternMode?'WiFi pattern player connected; output stopped. Refresh patterns to choose one.':'WiFi ready; output stopped. Dial-follow scaling active; device Limit screen is expected.');
+ }catch(e){this.disconnect('WiFi connect failed: '+e.message,false);this.nextRetryAt=this.clock()+5000;}finally{this.connecting=false;this.notify(this.ready?'WiFi connected / output stopped':this.message);}}
+ closed(ws){if(ws!==this.ws)return;if(this.patternMode){this.patternRunning=false;this.selectedPattern=null;this.requested=false;}for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(Error('WiFi connection closed'));}this.pending.clear();this.running=false;this.cleanup();this.nextRetryAt=this.clock()+1000;this.notify(this.requested?'WiFi lost; waiting to reconnect':'WiFi disconnected');}
+ disconnect(message='WiFi disconnected',manual=true){if(manual||this.patternMode)this.requested=false;this.patternRunning=false;this.selectedPattern=null;this.ws?.close();for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(Error(message));}this.pending.clear();this.running=false;this.cleanup();this.notify(message);}
+ async offAll(){if(this.running&&this.ws?.readyState===1){await this.request('PatternMinMaxChange',{MenuId:13,NewValue:0});await this.request('PatternStop');}this.running=false;this.sent=[0,0,0,0];this.cache.clear();}
+ async menu(id,value,ticket){this.valid(ticket);if(this.cache.get(id)===value)return;await this.request('PatternMinMaxChange',{MenuId:id,NewValue:value});this.valid(ticket);this.cache.set(id,value);}
+ async pump(){const ticket=this.epoch;if(!this.running){this.dials=[null,null,null,null];await this.request('PatternStart',{Index:this.patternId});this.running=true;this.valid(ticket);await this.request('SetPower',{Chan1:0,Chan2:0,Chan3:0,Chan4:0});this.valid(ticket);this.remoteDials=[0,0,0,0];this.cache.clear();}
+ while(this.latest&&this.armed){const frame=this.latest;this.latest=null;this.valid(ticket);const ramp=Math.max(0,Math.min(1,(this.clock()-this.armedAt)/2000)),sent=[];
+ // Remote mode clamps to the dial. Echo its level remotely so Lua multiplies it.
+ const levels=this.dials.map(v=>Number.isFinite(v)?Math.max(0,Math.min(1000,Math.round(v*10))):0);
+ if(levels.some((v,i)=>v!==this.remoteDials[i])){await this.request('SetPower',Object.fromEntries(levels.map((v,i)=>['Chan'+(i+1),v])));this.valid(ticket);this.remoteDials=levels;}
+ for(let i=0;i<4;i++){const c=frame.channels[i],enabled=frame.config[i].enabled;const power=enabled?Math.round(c.power*ramp*10):0;await this.menu(i*3+1,power,ticket);await this.menu(i*3+2,Math.round(c.frequency),ticket);await this.menu(i*3+3,Math.round(c.width),ticket);sent.push(power/10);}
+ this.valid(ticket);if(this.clock()-this.lastFrameAt>800)throw Error('Stale command feed');await this.request('PatternMinMaxChange',{MenuId:13,NewValue:this.commit=this.commit%1000+1});this.valid(ticket);this.sent=sent;this.notify('WiFi output running; frame acknowledged (not measured output)');}
+ }
+}
+class ZC95OutputRouter{
+ constructor(report){this.mode='bluetooth';this.ble=new ZC95Output(s=>{if(this.mode==='bluetooth')report(s);});this.wifi=new ZC95WifiOutput(s=>{if(this.mode==='wifi')report(s);});}
+ get active(){return this.mode==='wifi'?this.wifi:this.ble;}
+ get armed(){return this.active.armed;}get requested(){return this.active.requested;}get suspended(){return this.active.suspended;}set suspended(v){this.ble.suspended=v;this.wifi.suspended=v;}
+ async select(mode){if(mode===this.mode)return;await this.active.stop('Transport changed');this.active.disconnect('Transport changed');this.mode=mode;this.active.notify(mode==='wifi'?'WiFi selected; connect to the device IP':'Bluetooth selected');}
+ connect(){return this.active.connect();}disconnect(reason){return this.active.disconnect(reason);}stop(reason){return this.active.stop(reason);}pause(reason){return this.active.pause(reason);}arm(frame,scale){if(this.mode==='wifi'&&this.wifi.patternMode)throw Error('Use Play in Pattern player mode');return this.active.arm(frame,this.mode==='wifi'||scale);}update(frame){return this.active.update(frame);}notify(message){return this.active.notify(message);}
+}
+if(typeof module!=='undefined')module.exports={ZC95WifiOutput,ZC95OutputRouter};

@@ -1,0 +1,242 @@
+{
+  "channels": [
+    {
+      "name": "Channel 1",
+      "axis": "L0",
+      "invert": false,
+      "enabled": true,
+      "power_min": 38.5,
+      "power_max": 100,
+      "frequency_min": 40,
+      "frequency_max": 183,
+      "width_min": 80,
+      "width_max": 120,
+      "smoothing_ms": 0,
+      "speed_reference": 100,
+      "frequency_follow_ab": false,
+      "width_follow_ab": false,
+      "curve": {
+        "points": [
+          [
+            0,
+            100
+          ],
+          [
+            49.3,
+            94
+          ],
+          [
+            79.2,
+            65.9
+          ],
+          [
+            100,
+            3.2
+          ]
+        ],
+        "interpolation": "smooth"
+      },
+      "power_mode": "vector",
+      "power_speed_mix": 50,
+      "power_damping_ms": 0,
+      "power_rest_enabled": true,
+      "power_rest": 40,
+      "power_ramp_s": 0.5,
+      "frequency_mode": "blend",
+      "frequency_speed_mix": 67,
+      "frequency_damping_ms": 500,
+      "frequency_rest_enabled": false,
+      "frequency_rest": 100,
+      "frequency_ramp_s": 0.5,
+      "width_mode": "inv_position_speed",
+      "width_speed_mix": 67,
+      "width_damping_ms": 500,
+      "width_rest_enabled": false,
+      "width_rest": 100,
+      "width_ramp_s": 0.5
+    },
+    {
+      "name": "Channel 2",
+      "axis": "L0",
+      "invert": false,
+      "enabled": true,
+      "power_min": 43,
+      "power_max": 100,
+      "frequency_min": 40,
+      "frequency_max": 100,
+      "width_min": 80,
+      "width_max": 120,
+      "smoothing_ms": 0,
+      "speed_reference": 100,
+      "frequency_follow_ab": false,
+      "width_follow_ab": false,
+      "curve": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            16,
+            54
+          ],
+          [
+            50.6,
+            98.3
+          ],
+          [
+            100,
+            100
+          ]
+        ],
+        "interpolation": "smooth"
+      },
+      "power_mode": "vector",
+      "power_speed_mix": 50,
+      "power_damping_ms": 0,
+      "power_rest_enabled": true,
+      "power_rest": 40,
+      "power_ramp_s": 0.5,
+      "frequency_mode": "blend",
+      "frequency_speed_mix": 67,
+      "frequency_damping_ms": 500,
+      "frequency_rest_enabled": false,
+      "frequency_rest": 100,
+      "frequency_ramp_s": 0.5,
+      "width_mode": "inv_position_speed",
+      "width_speed_mix": 67,
+      "width_damping_ms": 500,
+      "width_rest_enabled": false,
+      "width_rest": 100,
+      "width_ramp_s": 0.5
+    },
+    {
+      "name": "Channel 3",
+      "axis": "L0",
+      "invert": false,
+      "enabled": true,
+      "power_min": 0,
+      "power_max": 10,
+      "frequency_min": 40,
+      "frequency_max": 100,
+      "width_min": 80,
+      "width_max": 120,
+      "smoothing_ms": 0,
+      "speed_reference": 100,
+      "frequency_follow_ab": false,
+      "width_follow_ab": false,
+      "curve": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            16.5,
+            4.7
+          ],
+          [
+            95.5,
+            100
+          ],
+          [
+            100,
+            100
+          ]
+        ],
+        "interpolation": "smooth"
+      },
+      "power_mode": "vector",
+      "power_speed_mix": 50,
+      "power_damping_ms": 0,
+      "power_rest_enabled": true,
+      "power_rest": 40,
+      "power_ramp_s": 0.5,
+      "frequency_mode": "blend",
+      "frequency_speed_mix": 67,
+      "frequency_damping_ms": 500,
+      "frequency_rest_enabled": false,
+      "frequency_rest": 100,
+      "frequency_ramp_s": 0.5,
+      "width_mode": "inv_position_speed",
+      "width_speed_mix": 67,
+      "width_damping_ms": 500,
+      "width_rest_enabled": false,
+      "width_rest": 100,
+      "width_ramp_s": 0.5
+    },
+    {
+      "name": "Channel 4",
+      "axis": "L0",
+      "invert": false,
+      "enabled": true,
+      "power_min": 0,
+      "power_max": 10,
+      "frequency_min": 40,
+      "frequency_max": 100,
+      "width_min": 80,
+      "width_max": 120,
+      "smoothing_ms": 0,
+      "speed_reference": 100,
+      "frequency_follow_ab": false,
+      "width_follow_ab": false,
+      "curve": {
+        "points": [
+          [
+            0,
+            100
+          ],
+          [
+            8.7,
+            100
+          ],
+          [
+            60,
+            0
+          ],
+          [
+            100,
+            0
+          ]
+        ],
+        "interpolation": "smooth"
+      },
+      "power_mode": "vector",
+      "power_speed_mix": 50,
+      "power_damping_ms": 0,
+      "power_rest_enabled": true,
+      "power_rest": 40,
+      "power_ramp_s": 0.5,
+      "frequency_mode": "blend",
+      "frequency_speed_mix": 67,
+      "frequency_damping_ms": 500,
+      "frequency_rest_enabled": false,
+      "frequency_rest": 100,
+      "frequency_ramp_s": 0.5,
+      "width_mode": "inv_position_speed",
+      "width_speed_mix": 67,
+      "width_damping_ms": 500,
+      "width_rest_enabled": false,
+      "width_rest": 100,
+      "width_ramp_s": 0.5
+    }
+  ],
+  "crossover": {
+    "enabled": false,
+    "axis": "L0",
+    "invert": false,
+    "centre": 50,
+    "width": 20,
+    "mode": "blend",
+    "curve": "linear",
+    "smoothing_ms": 0,
+    "speed_reference": 100
+  },
+  "volume": {
+    "enabled": true,
+    "delay_s": 2,
+    "ratio": 20
+  },
+  "input_invert": false,
+  "input_transport": "auto"
+}

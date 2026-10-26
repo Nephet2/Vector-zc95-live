@@ -57,7 +57,8 @@ class ZC95Output {
       this.valid(ticket);this.ready=true;this.notify('Connected. All OFF and zero-power commands sent.');
     }catch(e){this.disconnect('Connect failed: '+e.message,false);this.nextRetryAt=this.clock()+5000;}finally{this.connecting=false;this.notify(this.ready?'Connected / output stopped':this.message||'Disconnected');}
   }
-  check(frame){if(!frame||frame.version!=='0.6.1-follow')throw Error('Restart the v0.6.1 launcher; backend version differs');
+  check(frame){if(!frame||frame.version!=='0.9.1-wifi')throw Error('Restart the v0.9.1 launcher; backend version differs');
+    if(!Array.isArray(frame.config)||frame.config.length!==4||!Array.isArray(frame.channels)||frame.channels.length!==4||frame.channels.some((c,i)=>!c||c.channel!==i+1)||frame.config.some(c=>!c||typeof c.enabled!=='boolean'))throw Error('Invalid four-channel frame');
     if(frame.neutral)throw Error('Hard Neutral is active');
     const active=frame.channels.filter((_,i)=>frame.config[i].enabled);
     if(!active.length)throw Error('Enable a channel first');
@@ -85,7 +86,7 @@ class ZC95Output {
     while(this.latest&&this.armed){const frame=this.latest;this.latest=null;this.valid(ticket);
       if(this.clock()-this.lastFrameAt>800)throw Error('Stale command frame');
       const ramp=Math.max(0,Math.min(1,(this.clock()-this.armedAt)/2000));
-      for(let i=0;i<3;i++){this.valid(ticket);const c=frame.channels[i];const enabled=frame.config[i].enabled;
+      for(let i=0;i<4;i++){this.valid(ticket);const c=frame.channels[i];const enabled=frame.config[i].enabled;
         const p=enabled?Math.round(c.power*ramp*10):0;
         if(p===0){await this.cached(i,'enable',[0],ticket);await this.cached(i,'power',[0,0],ticket);this.sent[i]=0;continue;}
         if(!this.cache.has(i+'enable')){await this.cached(i,'enable',[0],ticket);await this.cached(i,'power',[0,0],ticket);}
@@ -99,7 +100,7 @@ class ZC95Output {
   stop(reason='Stopped',keepRequested=false){if(!keepRequested)this.requested=false;this.armed=false;this.latest=null;this.epoch++;
     if(this.stopping)return this.stopping;
     this.stopping=(async()=>{try{if(this.pumping)await this.pumping;if(this.device?.gatt.connected&&this.channels.length===4){await this.offAll();this.notify(reason+'; OFF and zero-power commands sent');}else this.notify(reason+'; hardware disconnected, output not measured');}catch(e){this.disconnect('Stop failed; disconnected: '+e.message,false);}
-      finally{this.stopping=null;}})();return this.stopping;
+      })().finally(()=>{this.stopping=null;});return this.stopping;
   }
 }
 if(typeof module!=='undefined')module.exports={ZC95Output};

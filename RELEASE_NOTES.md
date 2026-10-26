@@ -1,14 +1,17 @@
-# Release 0.6.1
+# v0.9.1 - Four-channel curves, Wi-Fi and starter presets
 
-First community publishing package for Vector-zc95-live.
+Vector ZC95 Live now supports four independently editable channel curves, with a live 2D overview and rotatable 3D ribbons. MFP-driven output works over Bluetooth or Wi-Fi; MFP input can use UDP, WebSocket or TCP.
 
-- MFP WebSocket, TCP and UDP input.
-- ZC95 BLE channel commands with physical Scale dial support.
-- Adjustable AB/CD crossover and independent third channel.
-- Running background floors, rest reduction, return ramps and texture damping.
-- Vector-style rolling volume with optional aligned look-ahead buffer.
-- Independent Follow 1-AB pulse repetition/width switches for channels 2 and 3.
-- Live edits with automatic persistence, compact layout and explanatory help.
-- Connection recovery while Run remains requested; explicit Stop cancels resume.
+- Smooth curves with draggable/editable points and reusable curve shapes.
+- Per-channel power envelopes, damped pulse repetition/width, and optional Channel 1 texture following.
+- Vector rolling-speed volume with a two-second look-ahead buffer.
+- Wi-Fi output with corrected physical-dial scaling; the device Limit screen is expected.
+- Stable connection controls and Bluetooth-only Scale confirmation.
+- Optional native pattern player when no funscript is available, including device-supplied controls and Lua upload into empty slots.
+- Steve's tested four-channel curves and settings included as the fresh-install starter preset.
 
-See README.md for installation and CONTROL_GUIDE.md for operating details. Experimental software; command feedback is not measured device output. MIT licence.
+Download the ZIP, extract it, and run START_VECTOR_ZC95.bat. Python 3.10+ and desktop Chrome/Edge are required; no pip dependencies. Existing users should close the old launcher and copy settings-zc95-v3.json into the new folder to retain their settings. New installs load starter-settings.json automatically.
+
+The starter has all four channels enabled, with Channel 1/2 software maxima of 100%. Review the included background/maximum ranges and begin with physical dials at zero. The application starts stopped and requires an explicit Start or Play.
+
+MFP-driven output, Wi-Fi dial scaling and basic native pattern playback have been tested on hardware by the project owner. Automated regression checks pass. The Lua player remains a basic optional feature; unsupported native audio/display widgets are not reproduced.

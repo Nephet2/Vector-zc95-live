@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('assert');global.setInterval=()=>0;global.ZC95Output=require('../bluetooth.js').ZC95Output;global.ZC95WifiOutput=require('../wifi.js').ZC95WifiOutput;require('../patterns.js');
+function setup(){const w=new ZC95WifiOutput();let now=0;w.clock=()=>now;w.patternMode=true;w.ready=true;w.channels=[{},{},{},{}];w.ws={readyState:1,close(){this.readyState=3;}};w.device={gatt:{get connected(){return w.ws.readyState===1;},disconnect(){w.ws.close();}}};const calls=[];w.request=async(Type,body={})=>{calls.push({Type,...body});if(Type==='GetPatterns')return{Patterns:[{Id:2,Name:'Waves'},{Id:9,Name:'U:Vector WiFi v1'}]};if(Type==='GetPatternDetail')return{Id:2,Name:'Waves',MenuItems:[]};if(Type==='GetLuaScripts')return{Scripts:[{Index:0,Empty:false,Name:'Keep'},{Index:3,Empty:true}]};return{};};return{w,calls,time:t=>now=t};}
+(async()=>{
+ const t=setup(),w=t.w;assert.deepEqual(await w.listPatterns(),[{Id:2,Name:'Waves'}]);await w.patternDetail(2);await w.playPattern();assert(w.armed&&w.patternRunning);assert.deepEqual(t.calls.filter(c=>c.Type==='SetPower').at(-1),{Type:'SetPower',Chan1:0,Chan2:0,Chan3:0,Chan4:0});
+ // MFP frames cannot alter native playback; its heartbeat follows physical dials.
+ w.update({neutral:true});assert(w.armed);w.dials=[50,25,0,100];t.time(2000);w.maintain();await w.pumping;assert.deepEqual(t.calls.at(-1),{Type:'SetPower',Chan1:500,Chan2:250,Chan3:0,Chan4:1000});
+ await w.changePatternValue({Type:'MIN_MAX',Id:1,Min:10,Max:100},50);assert.equal(t.calls.at(-1).NewValue,50);await assert.rejects(w.changePatternValue({Type:'MIN_MAX',Id:1,Min:10,Max:100},150));
+ await w.changePatternValue({Type:'MULTI_CHOICE',Id:2,Choices:[{Id:4}]},4);assert.equal(t.calls.at(-1).ChoiceId,4);
+ await w.patternButton();assert.deepEqual(t.calls.slice(-2).map(c=>c.Pressed),[1,0]);await w.pause('Hidden');assert(!w.requested&&!w.patternRunning);assert.deepEqual(t.calls.slice(-2).map(c=>c.Type),['SetPower','PatternStop']);assert(!t.calls.some(c=>c.MenuId===13));
+ await w.uploadPattern('Config = {name="Mine"}\nfunction Loop(t) end');assert.equal(t.calls.find(c=>c.Type==='LuaStart').Index,3);assert(t.calls.some(c=>c.Type==='LuaEnd'));assert.equal(w.selectedPattern,null);assert(!w.armed);
+ const b=setup();b.w.request=async()=>({Scripts:[{Index:0,Empty:false}]});await assert.rejects(b.w.uploadPattern('function Loop(t) end'),/No empty/);
+ const c=setup();c.w.selectedPattern={Id:2,Name:'Waves'};let release;c.w.request=async(Type,body={})=>{c.calls.push({Type,...body});if(Type==='PatternStart')await new Promise(r=>release=r);return{};};const play=c.w.playPattern();await Promise.resolve();const stop=c.w.stop();release();await assert.rejects(play);await stop;assert(!c.w.armed&&!c.w.requested);assert.equal(c.w.ws.readyState,3);
+ console.log('Pattern player passed: no MFP dependency, dial heartbeat, range/choice controls, button release, Stop/pause, empty-slot upload, full-slot protection and cancelled Play.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
