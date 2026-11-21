@@ -15,7 +15,7 @@ class ZC95Output {
   pause(reason){return this.stop(reason,true);}
   uuid(s){return 'ac7744c0-0bad-11ef-a9cd-0800200c9'+s;}
   notify(message){this.message=message;this.report({message,connected:this.ready,connecting:this.connecting,armed:this.armed,requested:this.requested,
-    sent:[...this.sent],dials:[...this.dials],firmware:this.firmware||'-',battery:this.battery??'-'});}
+    sent:[...this.sent],dials:[...this.dials],firmware:this.firmware||'—',battery:this.battery??'—'});}
   async deadline(p,label,ms=1500){let t;const device=this.device;try{return await Promise.race([p,new Promise((_,reject)=>{
     t=setTimeout(()=>{device?.gatt.disconnect();reject(Error(label+' timed out; disconnected'));},ms);
   })]);}finally{clearTimeout(t);}}

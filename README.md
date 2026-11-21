@@ -10,7 +10,7 @@ The interface opens at `http://127.0.0.1:8766`. Keep the console window open whi
 
 Settings save automatically in `settings-zc95-v3.json` beside the launcher. When upgrading, copy your existing settings file into the new folder before launching. To run from source, use `START_VECTOR_ZC95.bat` with Python 3.10 or newer.
 
-Power Envelope, Pulse Repetition and Pulse Width have independent Look-ahead smoothing sliders on each channel. With the buffer enabled, their centred window smooths changes inside the configured Min-Max range. A two-second look-ahead supports a window up to four seconds. Zero uses the existing response, as does playback without a look-ahead buffer.
+Power Envelope, Pulse Repetition and Pulse Width have independent Look-ahead smoothing sliders on each channel. With the buffer enabled, their centred window smooths changes inside the configured Min–Max range. A two-second look-ahead supports a window up to four seconds. Zero uses the existing response, as does playback without a look-ahead buffer.
 
 Power smoothing acts before the channel curve and includes rest transitions. The envelope heading shows the smoothed ceiling. The power meter shows how much the curve uses on each stroke.
 
@@ -94,7 +94,7 @@ Run automated checks with `python -m unittest discover -s tests` and the Node sc
 
 ## Project
 
-[Source and releases](https://github.com/Nephet2/Vector-zc95-live) � [ZC95 hardware/firmware](https://github.com/CrashOverride85/zc95)
+[Source and releases](https://github.com/Nephet2/Vector-zc95-live) · [ZC95 hardware/firmware](https://github.com/CrashOverride85/zc95)
 
 This is an independent community controller. See [LICENSE](LICENSE) for licensing and attribution.
 

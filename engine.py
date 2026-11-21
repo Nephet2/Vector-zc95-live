@@ -40,7 +40,7 @@ def defaults():
 def numeric(data, key, lo, hi):
     n = data.get(key)
     if type(n) not in (float, int) or not math.isfinite(n) or not lo <= n <= hi:
-        raise ValueError(f'{key} must be {lo}-{hi}')
+        raise ValueError(f'{key} must be {lo}–{hi}')
     return n
 
 def boolean(data, key):
@@ -56,7 +56,7 @@ def validate_cross(data):
     for k, lo, hi in [('centre',0,100),('width',0,100),('smoothing_ms',0,2000),('speed_reference',10,500)]:
         c[k] = numeric(data,k,lo,hi)
     if c['centre']-c['width']/2 < 0 or c['centre']+c['width']/2 > 100:
-        raise ValueError('Crossover band must fit within 0-100%')
+        raise ValueError('Crossover band must fit within 0–100%')
     if data.get('mode') not in ('blend','gap'): raise ValueError('Invalid crossover mode')
     if data.get('curve') not in ('linear','smooth'): raise ValueError('Invalid crossover curve')
     c['mode'], c['curve'] = data['mode'], data['curve']
