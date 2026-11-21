@@ -4,13 +4,17 @@ A standalone Windows controller that turns MultiFunPlayer T-code into dynamic ZC
 
 ## Download and run
 
-Download the Windows ZIP from Releases, right-click it and choose Extract All, then double-click **Vector-ZC95.exe** inside the extracted folder. Python is included; no Python installation or pip commands are needed. Use desktop Chrome or Edge.
+Extract the Windows x64 release ZIP and double-click **Vector-ZC95.exe**. Keep its `_internal` folder beside it. Python is bundled. Use desktop Chrome or Edge for the interface.
 
-Keep the companion `_internal` folder with the executable. The interface opens at `http://127.0.0.1:8766`. Keep the console window open while using Vector; closing it shuts down the listener. Close an older launcher before starting a new one.
+The interface opens at `http://127.0.0.1:8766`. Keep the console window open while using Vector; closing it shuts down the listener. Close an older launcher before starting a new one.
 
-Settings save automatically in `settings-zc95-v3.json` beside the executable. When upgrading, copy your existing settings file into the new folder before launching.
+Settings save automatically in `settings-zc95-v3.json` beside the launcher. When upgrading, copy your existing settings file into the new folder before launching. To run from source, use `START_VECTOR_ZC95.bat` with Python 3.10 or newer.
 
-Source files are also included. Developers can run `START_VECTOR_ZC95.bat` or `python server.py` with Python 3.10+. The batch launcher uses the executable when present and otherwise falls back to Python.
+Power Envelope, Pulse Repetition and Pulse Width have independent Look-ahead smoothing sliders on each channel. With the buffer enabled, their centred window smooths changes inside the configured Min-Max range. A two-second look-ahead supports a window up to four seconds. Zero uses the existing response, as does playback without a look-ahead buffer.
+
+Power smoothing acts before the channel curve and includes rest transitions. The envelope heading shows the smoothed ceiling. The power meter shows how much the curve uses on each stroke.
+
+The black line on each response bar shows the target before its response damping or look-ahead smoothing. The red half-marker shows the resulting command. The Power Envelope bar applies the channel curve to both readings.
 
 ## Included starter preset
 
@@ -90,7 +94,7 @@ Run automated checks with `python -m unittest discover -s tests` and the Node sc
 
 ## Project
 
-[Source and releases](https://github.com/Nephet2/Vector-zc95-live) · [ZC95 hardware/firmware](https://github.com/CrashOverride85/zc95)
+[Source and releases](https://github.com/Nephet2/Vector-zc95-live) � [ZC95 hardware/firmware](https://github.com/CrashOverride85/zc95)
 
 This is an independent community controller. See [LICENSE](LICENSE) for licensing and attribution.
 

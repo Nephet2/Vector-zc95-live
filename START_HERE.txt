@@ -1,15 +1,21 @@
-VECTOR ZC95 LIVE 0.9.2 - WINDOWS
+VECTOR ZC95 LIVE 0.9.5 - WINDOWS
 
-1. Right-click the downloaded ZIP and choose Extract All.
-2. Open the extracted Vector-ZC95 folder.
-3. Double-click Vector-ZC95.exe.
+1. Extract the ZIP. Close the earlier Vector ZC95 launcher and browser tab.
+2. Double-click Vector-ZC95.exe in the extracted folder. Keep its _internal folder beside it.
+3. Keep the console open and use Chrome or Edge. The page is http://127.0.0.1:8766.
 
-Python is included. Use Chrome or Edge for the interface.
-Keep the _internal folder with the EXE and keep its console window open.
+The Windows x64 ZIP includes Python. If running from source, use
+START_VECTOR_ZC95.bat with Python 3.10 or newer.
+Set MultiFunPlayer Output Target to UDP 127.0.0.1:12355 or WebSocket
+ws://127.0.0.1:12355/ws. The launcher prints the current endpoints.
+
+Each channel has independent Look-ahead smoothing for Power Envelope, Pulse
+Repetition and Pulse Width. Zero uses saved damping. With a two-second look-ahead, try
+four seconds on each slider for a comparison. The slider does not add delay.
 
 See README.md for MFP, Bluetooth and Wi-Fi setup.
 The app starts with hardware output stopped. Review the preset ranges and
 begin with physical device dials at zero before pressing Start or Play.
 
-UPGRADING: Copy your previous settings-zc95-v3.json beside the new EXE
+UPGRADING: Copy your previous settings-zc95-v3.json beside the new launcher
 before launching to retain your settings.

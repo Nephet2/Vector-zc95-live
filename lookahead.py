@@ -1,5 +1,6 @@
 """Buffered motion analysis adapted from Vector 1A's rolling-speed approach."""
 from collections import deque
+from bisect import bisect_right
 import math
 
 def volume_defaults():
@@ -28,11 +29,10 @@ class MotionBuffer:
     def sample(self,axis,at):
         history=self.history.get(axis)
         if not history:return None
-        left=right=None
-        for e in reversed(history):
-            if e['at']<=at:left=e;break
-            right=e
-        if left is None:return None
+        index=bisect_right(history, at, key=lambda entry: entry['at'])
+        if not index:return None
+        left=history[index-1]
+        right=history[index] if index<len(history) else None
         duration=left['interval_ms']/1000
         age=max(0,at-left['at'])
         if duration>0:

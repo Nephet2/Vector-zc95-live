@@ -11,6 +11,9 @@ from curves import preset, evaluate, validate_curve
 
 AXES = [f'{a}{i}' for a in 'LRVAPEBC' for i in range(10)]
 MODES = ('fixed', 'position', 'speed', 'inverse_speed', 'blend', 'inv_position_speed', 'vector')
+VERSION = '0.9.5'
+PULSE_AXES = ('frequency', 'width')
+SMOOTHING_RATE = 20
 
 def crossover_defaults():
     return dict(enabled=False, axis='L0', invert=False, centre=50, width=20,
@@ -22,7 +25,9 @@ def defaults():
         c = dict(name=name, axis='L0', invert=False, enabled=i<2,
                  power_min=0, power_max=10, frequency_min=40, frequency_max=100,
                  width_min=80, width_max=120, smoothing_ms=0, speed_reference=100)
-        c.update(frequency_follow_ab=False, width_follow_ab=False, curve=preset('crossover_'+str(i+1) if i<2 else 'flat', 'linear' if i<2 else 'smooth'))
+        c.update(frequency_follow_ab=False, width_follow_ab=False,
+                 power_smoothing_s=0, frequency_smoothing_s=0, width_smoothing_s=0,
+                 curve=preset('crossover_'+str(i+1) if i<2 else 'flat', 'linear' if i<2 else 'smooth'))
         for stem, mode in [('power', 'fixed'),
                            ('frequency', 'blend'), ('width', 'inv_position_speed')]:
             c.update({stem+'_mode':mode, stem+'_speed_mix':67 if stem!='power' else 50, stem+'_damping_ms':500 if stem!='power' else 0,
@@ -35,7 +40,7 @@ def defaults():
 def numeric(data, key, lo, hi):
     n = data.get(key)
     if type(n) not in (float, int) or not math.isfinite(n) or not lo <= n <= hi:
-        raise ValueError(f'{key} must be {lo}–{hi}')
+        raise ValueError(f'{key} must be {lo}-{hi}')
     return n
 
 def boolean(data, key):
@@ -51,7 +56,7 @@ def validate_cross(data):
     for k, lo, hi in [('centre',0,100),('width',0,100),('smoothing_ms',0,2000),('speed_reference',10,500)]:
         c[k] = numeric(data,k,lo,hi)
     if c['centre']-c['width']/2 < 0 or c['centre']+c['width']/2 > 100:
-        raise ValueError('Crossover band must fit within 0–100%')
+        raise ValueError('Crossover band must fit within 0-100%')
     if data.get('mode') not in ('blend','gap'): raise ValueError('Invalid crossover mode')
     if data.get('curve') not in ('linear','smooth'): raise ValueError('Invalid crossover curve')
     c['mode'], c['curve'] = data['mode'], data['curve']
@@ -68,6 +73,8 @@ def validate(rows):
         for k in ('frequency_follow_ab','width_follow_ab'):
             c[k] = boolean({k:False,**src},k) if c['name']!='Channel 1' else False
         for stem,lo,hi in [('power',0,100),('frequency',1,255),('width',1,255)]:
+            key = stem + '_smoothing_s'
+            c[key] = numeric({key: 0, **src}, key, 0, 10)
             for end in ('min','max'): c[stem+'_'+end] = numeric(src,stem+'_'+end,lo,hi)
             if c[stem+'_min']>c[stem+'_max']: raise ValueError(stem+' minimum exceeds maximum')
             if src.get(stem+'_mode') not in MODES: raise ValueError('Invalid '+stem+' response')
@@ -160,9 +167,10 @@ class Engine:
 
     def ingest(self,message,transport,source=None):
         from tcode import parse_message
-        if self.input_transport!='auto' and transport!=self.input_transport:return
-        commands=parse_message(message[:65536]);now=self.clock()
+        commands=parse_message(message[:65536])
         with self.lock:
+            if self.input_transport!='auto' and transport!=self.input_transport:return
+            now=self.clock()
             for cmd in commands:
                 if cmd.axis not in AXES:continue
                 old=self.axes.get(cmd.axis)
@@ -240,10 +248,114 @@ class Engine:
         value=x if prev is None else prev+(x-prev)*a
         self.smooth[key]=value;return value
 
-    def parameter(self,c,stem,x,speed,moving,now,i,dt,vector_speed=0.,vector_moving=False):
+    def _smoothing_window(self, axis, window, now):
+        delay = self.volume['delay_s'] if self.volume['enabled'] else 0
+        if not window or not delay:
+            return None
+        history = self.motion.history.get(axis)
+        if not (history or self.demo):
+            return None
+        center = now - delay
+        start = max(self.buffer_started, self.started if self.demo else history[0]['at'])
+        radius = min(window / 2, delay, center - start)
+        if radius < .1:
+            return None
+        return center, radius, start
+
+    def _buffered_motion(self, axis, tick, samples):
+        key = (axis, tick)
+        if key not in samples:
+            at = tick / SMOOTHING_RATE
+            if self.demo:
+                phase = (at - self.started) * math.pi / 2
+                velocity = abs(math.cos(phase) * math.pi / 4)
+                samples[key] = ((math.sin(phase) + 1) / 2, velocity,
+                                min(1, velocity / (math.pi / 4)), velocity > .005)
+            else:
+                samples[key] = self.motion.sample(axis, at)
+        return samples[key]
+
+    def pulse_motion(self, c, window, now, samples):
+        bounds = self._smoothing_window(c['axis'], window, now)
+        if bounds is None:
+            return None
+        center, radius, _ = bounds
+        # Fixed time grid keeps changes in the source from jumping between
+        # moving sample taps. Cosine weights taper to zero at both ends.
+        lower = math.ceil((center - radius) * SMOOTHING_RATE)
+        upper = math.floor((center + radius) * SMOOTHING_RATE)
+        position = speed = total = 0.
+        for tick in range(lower, upper + 1):
+            sample = self._buffered_motion(c['axis'], tick, samples)
+            if sample is None:
+                continue
+            x, velocity, _, _ = sample
+            at = tick / SMOOTHING_RATE
+            weight = 1 + math.cos(math.pi * (at - center) / radius)
+            position += weight * x
+            speed += weight * min(1, velocity / (c['speed_reference'] / 100))
+            total += weight
+        if not total:
+            return None
+        x = position / total
+        return (1 - x if c['invert'] != self.input_invert else x), speed / total
+
+    def _drive(self, mode, mix, x, speed, vector_speed):
+        return {'fixed': 1., 'position': x, 'speed': speed, 'inverse_speed': 1 - speed,
+                'blend': x * (1 - mix) + speed * mix,
+                'inv_position_speed': (1 - x) * (1 - mix) + speed * mix,
+                'vector': (self.volume['ratio'] - 1 + vector_speed) / self.volume['ratio']}[mode]
+
+    def _smoothed_power_target(self, c, now, samples):
+        """Average the envelope, including its rest response, before the curve."""
+        mode = c['power_mode']
+        rest_enabled = c['power_rest_enabled']
+        if mode == 'fixed' and not rest_enabled:
+            return None
+        axis = c['axis']
+        bounds = self._smoothing_window(axis, c['power_smoothing_s'], now)
+        if bounds is None:
+            return None
+        center, radius, start = bounds
+        ramp = c['power_ramp_s'] if rest_enabled else 0
+        rest = c['power_rest'] / 100
+        mix = c['power_speed_mix'] / 100
+        inverted = c['invert'] != self.input_invert
+        first = math.ceil(max(start, center - radius - ramp) * SMOOTHING_RATE)
+        last = math.floor((center + radius) * SMOOTHING_RATE)
+        moving_since = None
+        weighted = total = 0.
+        for tick in range(first, last + 1):
+            sample = self._buffered_motion(axis, tick, samples)
+            if sample is None:
+                continue
+            x, velocity, vector_speed, vector_moving = sample
+            at = tick / SMOOTHING_RATE
+            factor = 1.
+            if rest_enabled:
+                moving = vector_moving if mode == 'vector' else velocity > .005
+                if not moving:
+                    moving_since = None
+                    factor = rest
+                else:
+                    if moving_since is None:
+                        moving_since = at
+                    progress = min(1, (at - moving_since) / ramp) if ramp else 1.
+                    factor = rest + (1 - rest) * progress
+            if at < center - radius:
+                continue
+            weight = 1 + math.cos(math.pi * (at - center) / radius)
+            speed = min(1, velocity / (c['speed_reference'] / 100))
+            drive = self._drive(mode, mix, 1 - x if inverted else x, speed, vector_speed)
+            weighted += weight * drive * factor
+            total += weight
+        return weighted / total if total else None
+
+    def parameter(self,c,stem,x,speed,moving,now,i,dt,vector_speed=0.,vector_moving=False,
+                  pulse_motion=None, smoothed_target=None):
         mode=c[stem+'_mode'];mix=c[stem+'_speed_mix']/100
         if mode=='vector':moving=vector_moving
-        drive={'fixed':1.,'position':x,'speed':speed,'inverse_speed':1-speed,'blend':x*(1-mix)+speed*mix,'inv_position_speed':(1-x)*(1-mix)+speed*mix,'vector':(self.volume['ratio']-1+vector_speed)/self.volume['ratio']}[mode]
+        drive = self._drive(mode, mix, x, speed, vector_speed)
         factor=1.
         key=(i,stem)
         if c[stem+'_rest_enabled']:
@@ -255,13 +367,17 @@ class Engine:
                 factor=rest+(1-rest)*progress
         lo,hi=c[stem+'_min'],c[stem+'_max']
         # Modulate only the excursion above minimum; power minimum is the background.
-        target=max(0,min(1,drive*factor))
+        undamped = max(0, min(1, drive * factor))
+        if pulse_motion is not None:
+            smoothed_target = self._drive(mode, mix, *pulse_motion, vector_speed) * factor
+        target = undamped if smoothed_target is None else max(0, min(1, smoothed_target))
         damping=c[stem+'_damping_ms']
         previous=self.responses.get(key,0.)
-        alpha=1. if damping==0 or mode=='fixed' else 1-math.exp(-dt/(damping/1000))
+        use_damping = damping and mode != 'fixed' and pulse_motion is None and smoothed_target is None
+        alpha = 1 - math.exp(-dt / (damping / 1000)) if use_damping else 1.
         response=previous+(target-previous)*alpha
         self.responses[key]=response
-        return lo+(hi-lo)*response
+        return lo + (hi - lo) * undamped, lo + (hi - lo) * response
 
     def snapshot(self):
         now=self.clock()
@@ -273,6 +389,7 @@ class Engine:
             cx=self.smooth_position('cross',cx,cross['smoothing_ms'],dt,cf and not self.neutral)
             weights=crossover_weights(cx,cross)
             channels=[]
+            motion_samples = {}
             for i,c in enumerate(self.config):
                 paired=False
                 x,speed,moving,fresh,vs,vm=(cx,cs,cm,cf,cvs,cvm) if paired else self.source(c['axis'],c['invert'],c['speed_reference'],now)
@@ -280,20 +397,33 @@ class Engine:
                 weight=evaluate(c['curve'],x)
                 active=fresh and c['enabled'] and not self.neutral
                 if active:
-                    envelope=self.parameter(c,'power',x,speed,moving,now,i,dt,vs,vm)
+                    power_target = self._smoothed_power_target(c, now, motion_samples)
+                    envelope_target,envelope=self.parameter(c,'power',x,speed,moving,now,i,dt,vs,vm,
+                                                             smoothed_target=power_target)
+                    power_undamped=c['power_min']+(envelope_target-c['power_min'])*weight
                     p=c['power_min']+(envelope-c['power_min'])*weight
-                    f=channels[0]['frequency'] if i>0 and c['frequency_follow_ab'] else self.parameter(c,'frequency',x,speed,moving,now,i,dt)
-                    w=channels[0]['width'] if i>0 and c['width_follow_ab'] else self.parameter(c,'width',x,speed,moving,now,i,dt)
+                    pulse_values = []
+                    for stem in PULSE_AXES:
+                        if i > 0 and c[stem + '_follow_ab']:
+                            pulse_values.append((channels[0]['undamped'][stem], channels[0][stem]))
+                            continue
+                        window = c[stem + '_smoothing_s'] if c[stem + '_mode'] not in ('fixed', 'vector') else 0
+                        motion = self.pulse_motion(c, window, now, motion_samples)
+                        pulse_values.append(self.parameter(c,stem,x,speed,moving,now,i,dt,
+                                                           pulse_motion=motion))
+                    (frequency_undamped,f),(width_undamped,w) = pulse_values
                 else:
                     for stem in ('power','frequency','width'):
                         self.attacks.pop((i,stem),None);self.responses.pop((i,stem),None)
                     envelope=0
                     p,f,w=0,c['frequency_min'],c['width_min']
+                    power_undamped,frequency_undamped,width_undamped=p,f,w
                 status='NEUTRAL' if self.neutral else ('DISABLED' if not c['enabled'] else (('BACKGROUND' if c['power_min']>0 else 'GATED OFF') if active and weight==0 else ('PREVIEW' if active else ('BUFFERING' if self.volume['enabled'] and self.fresh(self.axes.get(cross['axis'] if paired else c['axis']),now) else 'STALE / NO INPUT'))))
                 channels.append(dict(channel=i+1,name=c['name'],axis=cross['axis'] if paired else c['axis'],state=status,
                     position=round(x,4),vector_speed=round(vs*100,1),speed=round(speed*100,1),weight=round(weight*100,2),
-                    envelope=round(envelope,2),background=c['power_min'] if active else 0,power=round(max(0,min(100,p)),2),frequency=round(f),width=round(w)))
-            return dict(version='0.9.2-wifi',mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
+                    envelope=round(envelope,2),background=c['power_min'] if active else 0,power=round(max(0,min(100,p)),2),frequency=round(f),width=round(w),
+                    undamped=dict(power=round(power_undamped,2),frequency=round(frequency_undamped),width=round(width_undamped))))
+            return dict(version=VERSION,mode='DEMO' if self.demo else 'MFP LIVE',neutral=self.neutral,
                 config=self.config,input_transport=self.input_transport,input_invert=self.input_invert,volume=self.volume,buffer_remaining=round(max(0,self.volume['delay_s']-(now-self.buffer_started)),2) if self.volume['enabled'] else 0,crossover=cross,crossover_position=round(cx*100,2),
                 defaults=dict(channels=defaults(),crossover=crossover_defaults(),volume=volume_defaults(),input_invert=False),axes=incoming,channels=channels,
                 input_links=sum(1 for link in self.links.values() if self.input_transport=='auto' or link['transport']==self.input_transport),count=self.count,last_packet=self.last_packet,transport=self.transport,errors=self.listener_errors,hardware_output=False)

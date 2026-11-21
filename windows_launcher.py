@@ -13,13 +13,13 @@ def main():
         for name in ASSETS:
             if not (server.ROOT/name).is_file():
                 raise RuntimeError('Missing packaged asset: '+name)
-        from engine import Engine
+        from engine import Engine, VERSION
         engine = Engine(server.APP_ROOT/'settings-zc95-v3.json')
         if engine.listener_errors:
             raise RuntimeError('; '.join(engine.listener_errors))
         if not (server.APP_ROOT/'starter-settings.json').is_file():
             raise RuntimeError('Starter preset must be beside the executable')
-        print(json.dumps({'version':'0.9.2','frozen':bool(getattr(sys,'frozen',False)),
+        print(json.dumps({'version':VERSION,'frozen':bool(getattr(sys,'frozen',False)),
                           'assets':len(ASSETS),'channels':len(engine.config),
                           'settings_folder':str(server.APP_ROOT),'output_started':False}))
         return 0

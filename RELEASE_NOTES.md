@@ -1,3 +1,21 @@
+# v0.9.5 - Live response markers
+
+- Each response bar shows its undamped target as a full-height black line and its filtered command as a red half-marker. The red marker follows both damping and look-ahead smoothing.
+- The Power Envelope bar compares power commands after the channel curve. Its heading still shows the live envelope.
+
+# v0.9.4 - Power Envelope smoothing
+
+- Each channel has an independent 0-10 second Look-ahead smoothing slider for Power Envelope. It smooths motion and rest transitions before applying the channel curve.
+- The Power Envelope heading reports the live envelope. The power meter and gold marker still show the final command.
+- Existing settings load with envelope smoothing off. A two-second look-ahead supports a centred window up to four seconds.
+
+# v0.9.3 - Pulse look-ahead smoothing
+
+- Independent 0-10 second smoothing sliders for Pulse Repetition and Pulse Width on each channel. Zero keeps the previous response and saved damping.
+- Uses a centred window within the configured look-ahead. The full window is limited to twice that delay. Rest reduction and return ramp still apply, and channels set to follow Channel 1 copy its resulting texture.
+- The web dashboard and console show the actual MultiFunPlayer endpoints.
+- This trial is supplied as a Windows source build. Start it with `START_VECTOR_ZC95.bat` and an installed Python 3.10 or newer.
+
 # v0.9.2 - Windows executable included
 
 Download the Windows ZIP, choose Extract All, and double-click Vector-ZC95.exe. Python is bundled: no separate Python installation or terminal commands. Keep the _internal folder with the executable and leave the console window open while using the app.

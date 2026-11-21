@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
-from engine import Engine
+from engine import Engine, validate
 ROOT = Path(__file__).resolve().parents[1]
 class StarterSettingsTests(unittest.TestCase):
  def test_fresh_install_loads_starter(self):
@@ -11,7 +11,7 @@ class StarterSettingsTests(unittest.TestCase):
    root=Path(folder);shutil.copyfile(ROOT/'starter-settings.json',root/'starter-settings.json')
    settings=root/'settings-zc95-v3.json';engine=Engine(settings=settings)
    data=json.loads((root/'starter-settings.json').read_text())
-   self.assertEqual(engine.config,data['channels']);self.assertEqual(engine.volume,data['volume'])
+   self.assertEqual(engine.config,validate(data['channels']));self.assertEqual(engine.volume,data['volume'])
    self.assertEqual(engine.listener_errors,[]);self.assertFalse(engine.demo);self.assertFalse(settings.exists())
  def test_existing_settings_win_and_stay_unchanged(self):
   with tempfile.TemporaryDirectory(dir=ROOT) as folder:

@@ -1,4 +1,4 @@
-"""Vector ZC95 0.6: local MFP mapping backend; browser owns Bluetooth output."""
+"""Vector ZC95: local MFP mapping backend; browser owns Bluetooth output."""
 from __future__ import annotations
 import argparse
 import json
@@ -19,7 +19,7 @@ from websocket_input import WebSocketInput
 
 ROOT = Path(__file__).resolve().parent
 APP_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else ROOT
-from engine import Engine, defaults, crossover_defaults, validate, axis_value
+from engine import VERSION, Engine, defaults, crossover_defaults, validate, axis_value
 
 class LocalTCP(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
@@ -150,8 +150,8 @@ def main():
         return 1
     for s in servers: threading.Thread(target=s.serve_forever, daemon=True).start()
     url = f'http://127.0.0.1:{args.web_port}/'
-    print('Vector ZC95 0.9.2 - continuous full configured power range; starts disarmed\n'+url)
-    print(f'MFP: ws://127.0.0.1:{args.mfp_port}/ws (or TCP/UDP on the same port)')
+    print(f'Vector ZC95 {VERSION} - continuous full configured power range; starts disarmed\n'+url)
+    print(f'MultiFunPlayer Output Target: UDP/TCP 127.0.0.1:{args.mfp_port} or WebSocket ws://127.0.0.1:{args.mfp_port}/ws')
     print('Keep this window open. Ctrl+C closes the app.')
     if not args.no_browser: webbrowser.open(url)
     try:
